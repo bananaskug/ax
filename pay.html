@@ -12,6 +12,7 @@
             --background-color: #1a1a1a; --surface-color: #2c2c2c; --primary-color: #ffffff;
             --text-color: #e0e0e0; --text-secondary-color: #888888; --border-color: #444444;
             --font-main: 'Space Grotesk', sans-serif;
+            --success-color: #45d966; --error-color: #ff6b6b;
         }
         * { box-sizing: border-box; }
         body {
@@ -63,6 +64,13 @@
         #transactions-list li { padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); }
         #transactions-list li:last-child { border-bottom: none; }
         #transactions-list small { color: var(--text-secondary-color); display: block; }
+        
+        /* CONFIRMATION MODAL SPECIFIC STYLES */
+        #confirmation-details { margin: 1.5rem 0; font-size: 1.1rem; }
+        .confirmation-buttons { display: flex; gap: 1rem; justify-content: center; }
+        .confirmation-buttons button { width: 45%; }
+        #confirm-send-button { background-color: var(--success-color); }
+        #cancel-send-button { background-color: var(--error-color); color: var(--primary-color); }
     </style>
 </head>
 <body>
@@ -118,6 +126,19 @@
         </div>
     </div>
 
+    <!-- ===== NEW: CONFIRMATION MODAL ===== -->
+    <div id="confirmation-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" id="close-confirmation-modal">&times;</span>
+            <div class="modal-title">Confirm Transaction</div>
+            <div id="confirmation-details"></div>
+            <div class="confirmation-buttons">
+                <button type="button" id="cancel-send-button">No, Cancel</button>
+                <button type="button" id="confirm-send-button">Yes, Send</button>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzf6-kLkmzf57M1BJLasagt_ZDFK8KBNGQIseTrqiDwGXshMBfMrNccFxcCKl4xOgjDrQ/exec';
@@ -134,6 +155,14 @@
         // Modal elements
         const transactionsModal = document.getElementById('transactions-modal');
         const closeModalButtons = document.querySelectorAll('.modal-close');
+
+        // NEW: Confirmation Modal Elements
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const confirmationDetails = document.getElementById('confirmation-details');
+        const confirmSendButton = document.getElementById('confirm-send-button');
+        const cancelSendButton = document.getElementById('cancel-send-button');
+        const closeConfirmationModal = document.getElementById('close-confirmation-modal');
+
 
         let currentUser = null, userBalances = {}, allTransactions = [];
 
@@ -214,15 +243,45 @@
             transactionsModal.style.display = 'block';
         }
 
+        async function executePayment() {
+            sendButton.disabled = true;
+            confirmSendButton.disabled = true;
+            paymentStatus.style.color = 'var(--text-secondary-color)';
+            
+            // Retrieve details from form again
+            const receiver = receiverSelect.value;
+            const amount = parseFloat(document.getElementById('amount-input').value);
+            const transactionData = { name: currentUser, pin: accounts[currentUser].pin, amount: amount, receiver: receiver };
+
+            try {
+                const response = await fetch(WEB_APP_URL, { method: 'POST', mode: 'cors', cache: 'no-cache', body: JSON.stringify(transactionData) });
+                const result = await response.json();
+                if (result.status !== 'success') throw new Error(result.message);
+                
+                paymentStatus.textContent = "Success!";
+                paymentStatus.style.color = 'var(--success-color)';
+                paymentForm.reset();
+                await refreshDataAndUI(paymentStatus, "Processing...");
+
+            } catch (error) {
+                paymentStatus.textContent = `Error: ${error.message}`;
+                paymentStatus.style.color = 'var(--error-color)';
+            } finally {
+                sendButton.disabled = false;
+                confirmSendButton.disabled = false;
+                confirmationModal.style.display = 'none'; // Hide modal on completion
+            }
+        }
+
         // Event Listeners
         loginButton.addEventListener('click', async () => {
             const selectedUser = userSelect.value, enteredPin = document.getElementById('pin-input').value;
-            if (!selectedUser) { loginStatus.textContent = "Please select your name."; loginStatus.style.color = '#ff6b6b'; return; }
-            if (!accounts[selectedUser] || accounts[selectedUser].pin !== enteredPin) { loginStatus.textContent = "Invalid PIN."; loginStatus.style.color = '#ff6b6b'; return; }
+            if (!selectedUser) { loginStatus.textContent = "Please select your name."; loginStatus.style.color = 'var(--error-color)'; return; }
+            if (!accounts[selectedUser] || accounts[selectedUser].pin !== enteredPin) { loginStatus.textContent = "Invalid PIN."; loginStatus.style.color = 'var(--error-color)'; return; }
             loginButton.disabled = true;
             loginStatus.style.color = 'var(--text-secondary-color)';
             try { await performLogin(selectedUser); } 
-            catch (error) { loginStatus.textContent = `Login failed: ${error.message}`; loginStatus.style.color = '#ff6b6b'; } 
+            catch (error) { loginStatus.textContent = `Login failed: ${error.message}`; loginStatus.style.color = 'var(--error-color)'; } 
             finally { loginButton.disabled = false; }
         });
         
@@ -238,31 +297,36 @@
 
         transactionsButton.addEventListener('click', showTransactions);
 
-        paymentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const receiver = receiverSelect.value, amount = parseFloat(document.getElementById('amount-input').value);
+        paymentForm.addEventListener('submit', (e) => {
+            e.preventDefault(); // Prevent form from submitting the traditional way
+            const receiver = receiverSelect.value;
+            const amount = parseFloat(document.getElementById('amount-input').value);
             const currentUserBalance = userBalances[currentUser] || 0;
-            paymentStatus.style.color = '#ff6b6b';
+            
+            paymentStatus.style.color = 'var(--error-color)';
             if (!receiver) { paymentStatus.textContent = "Please select a receiver."; return; }
             if (isNaN(amount) || amount <= 0) { paymentStatus.textContent = "Please enter a valid amount."; return; }
             if (amount > currentUserBalance) { paymentStatus.textContent = "Insufficient funds!"; return; }
-            sendButton.disabled = true;
-            paymentStatus.style.color = 'var(--text-secondary-color)';
-            const transactionData = { name: currentUser, pin: accounts[currentUser].pin, amount: amount, receiver: receiver };
-            try {
-                const response = await fetch(WEB_APP_URL, { method: 'POST', mode: 'cors', cache: 'no-cache', body: JSON.stringify(transactionData) });
-                const result = await response.json();
-                if (result.status !== 'success') throw new Error(result.message);
-                paymentStatus.textContent = "Success!";
-                paymentStatus.style.color = '#45d966'; // Success Green
-                paymentForm.reset();
-                await refreshDataAndUI(paymentStatus, "Processing...");
-            } catch (error) { paymentStatus.textContent = `Error: ${error.message}`; paymentStatus.style.color = '#ff6b6b'; } 
-            finally { sendButton.disabled = false; }
+            
+            // If validation passes, show confirmation modal instead of sending immediately
+            confirmationDetails.innerHTML = `Are you sure you want to send <strong>&${amount.toFixed(2)}</strong> to <strong>${receiver}</strong>?`;
+            confirmationModal.style.display = 'block';
+            paymentStatus.textContent = ''; // Clear previous status messages
         });
 
+        // NEW: Event listener for the actual send button inside the modal
+        confirmSendButton.addEventListener('click', executePayment);
+
         closeModalButtons.forEach(btn => btn.onclick = () => { transactionsModal.style.display = 'none'; });
-        window.onclick = (event) => { if (event.target == transactionsModal) { event.target.style.display = 'none'; } };
+        window.onclick = (event) => { 
+            if (event.target == transactionsModal) { transactionsModal.style.display = 'none'; }
+            if (event.target == confirmationModal) { confirmationModal.style.display = 'none'; } // NEW
+        };
+
+        // NEW: Event listeners to close the confirmation modal
+        cancelSendButton.onclick = () => { confirmationModal.style.display = 'none'; };
+        closeConfirmationModal.onclick = () => { confirmationModal.style.display = 'none'; };
+
 
         document.addEventListener('DOMContentLoaded', async () => {
             populateLoginDropdown();
@@ -270,7 +334,7 @@
             if (savedUser && accounts[savedUser]) {
                 loginButton.disabled = true; userSelect.value = savedUser; loginStatus.textContent = `Welcome back, ${savedUser}...`;
                 try { await performLogin(savedUser); } 
-                catch(error) { loginStatus.textContent = `Auto-login failed. Please log in manually.`; loginStatus.style.color = '#ff6b6b'; localStorage.removeItem('harwell_loggedInUser'); } 
+                catch(error) { loginStatus.textContent = `Auto-login failed. Please log in manually.`; loginStatus.style.color = 'var(--error-color)'; localStorage.removeItem('harwell_loggedInUser'); } 
                 finally { loginButton.disabled = false; }
             }
         });
