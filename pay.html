@@ -3,237 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HARWELL PAY (Offline Mode)</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --background-color: #1a1a1a; --surface-color: #2c2c2c; --primary-color: #ffffff;
-            --text-color: #e0e0e0; --text-secondary-color: #888888; --border-color: #444444;
-            --font-main: 'Space Grotesk', sans-serif;
-        }
-        body {
-            font-family: var(--font-main); background-color: var(--background-color); color: var(--text-color);
-            display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box;
-        }
-        .app-container {
-            width: 100%; max-width: 400px; background: var(--surface-color); border-radius: 16px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.2); overflow: hidden; border: 1px solid var(--border-color);
-        }
-        .screen { padding: 2.5rem 2rem; }
-        h1, h2 { text-align: center; color: var(--primary-color); font-weight: 700; }
-        h1 { margin-top: 0; margin-bottom: 0.5rem; font-size: 2rem; }
-        h2 { margin-top: 0; margin-bottom: 2rem; font-size: 1.2rem; color: var(--text-secondary-color); font-weight: 400; }
-        .form-group { margin-bottom: 1.5rem; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-secondary-color); font-size: 0.9rem; }
-        input, select {
-            width: 100%; padding: 0.9rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem;
-            background-color: var(--background-color); color: var(--text-color); font-family: var(--font-main); box-sizing: border-box;
-        }
-        select {
-           -webkit-appearance: none; -moz-appearance: none; appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat; background-position: right 1rem center;
-        }
-        button {
-            width: 100%; padding: 0.9rem; border: none; border-radius: 8px; background-color: var(--primary-color); color: #000000;
-            font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: transform 0.2s, background-color 0.2s; font-family: var(--font-main);
-        }
-        button:hover { transform: scale(1.02); }
-        button:disabled { background-color: #555; color: #999; cursor: not-allowed; transform: scale(1); }
-        #app-screen { display: none; }
-        #balance-display { text-align: center; margin-bottom: 2.5rem; }
-        #balance { font-size: 3.5rem; font-weight: 700; color: var(--primary-color); }
-        #status { text-align: center; margin-top: 1.5rem; font-weight: 500; min-height: 20px; }
-    </style>
-</head>
-<body>
-
-    <div class="app-container">
-        <!-- ===== LOGIN SCREEN ===== -->
-        <div id="login-screen" class="screen">
-            <h1>HARWELL PAY</h1>
-            <div class="form-group">
-                <label for="user-select">Your Name</label>
-                <select id="user-select" required></select>
-            </div>
-            <div class="form-group">
-                <label for="pin-input">PIN</label>
-                <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" required>
-            </div>
-            <button type="button" id="login-button">Login</button>
-            <div id="login-status" class="status"></div>
-        </div>
-
-        <!-- ===== MAIN APP SCREEN ===== -->
-        <div id="app-screen" class="screen">
-            <h2 id="welcome-message">Welcome!</h2>
-            <div id="balance-display">
-                <label>Your Current Balance</label>
-                <div id="balance">&0.00</div>
-            </div>
-            <form id="payment-form">
-                 <p style="text-align:center; color: var(--text-secondary-color);">NOTE: This is offline mode. Transactions will not be saved.</p>
-                <div class="form-group">
-                    <label for="receiver-select">Send To</label>
-                    <select id="receiver-select" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="amount-input">Amount (&)</label>
-                    <input type="number" id="amount-input" step="0.01" min="0.01" placeholder="0.00" required>
-                </div>
-                <button type="submit" id="send-button">Send</button>
-                <div id="payment-status" class="status"></div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        // THIS IS OFFLINE "DUMMY" MODE. IT DOES NOT CONNECT TO GOOGLE SHEETS.
-        
-        // ===== MANAGE ACCOUNTS HERE =====
-        const accounts = {
-            'Taj': { pin: '1595', balance: 100.00 },
-            'Person B': { pin: '1234', balance: 50.00 },
-            'Person C': { pin: '5678', balance: 75.00 }
-        };
-
-        const loginScreen = document.getElementById('login-screen');
-        const appScreen = document.getElementById('app-screen');
-        const loginButton = document.getElementById('login-button');
-        const userSelect = document.getElementById('user-select');
-        const receiverSelect = document.getElementById('receiver-select');
-        const balanceDiv = document.getElementById('balance');
-        const welcomeMessage = document.getElementById('welcome-message');
-        const loginStatus = document.getElementById('login-status');
-        
-        let currentUser = null;
-
-        function populateLoginDropdown() {
-            for (const name in accounts) {
-                const option = document.createElement('option');
-                option.value = name;
-                option.textContent = name;
-                userSelect.appendChild(option);
-            }
-        }
-
-        function populateReceiverDropdown(loggedInUser) {
-            receiverSelect.innerHTML = '<option value="">Select receiver...</option>';
-            for (const name in accounts) {
-                if (name !== loggedInUser) {
-                    const option = document.createElement('option');
-                    option.value = name;
-                    option.textContent = name;
-                    receiverSelect.appendChild(option);
-                }
-            }
-        }
-
-        loginButton.addEventListener('click', () => {
-            const selectedUser = userSelect.value;
-            const enteredPin = document.getElementById('pin-input').value;
-
-            if (accounts[selectedUser] && accounts[selectedUser].pin === enteredPin) {
-                currentUser = selectedUser;
-                welcomeMessage.textContent = `Hello, ${currentUser}`;
-                balanceDiv.textContent = `&${accounts[currentUser].balance.toFixed(2)}`;
-                
-                populateReceiverDropdown(currentUser);
-                
-                loginScreen.style.display = 'none';
-                appScreen.style.display = 'block';
-            } else {
-                loginStatus.textContent = "Invalid Name or PIN.";
-                loginStatus.style.color = '#ff6b6b';
-            }
-        });
-        
-        document.getElementById('payment-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            alert("Sending is disabled in offline mode.");
-        });
-
-        // Initialize App
-        populateLoginDropdown();
-    </script>
-</body>
-</html>```
-
----
-
-### Part 2: The Permanent Online Fix
-
-Now that you've seen the app works, let's connect it to Google Sheets correctly. **You must follow these steps exactly.** The "Failed to fetch" error happens when a step is missed.
-
-#### Step 1: Update the Apps Script
-This code is more robust.
-1.  Open your Apps Script project.
-2.  Delete **all** the old code.
-3.  Copy and paste this new code:
-    ```javascript
-    const SHEET_NAME = "Transactions";
-
-    function doGet(e) {
-      try {
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-        if (!sheet) {
-          throw new Error(`Sheet named '${SHEET_NAME}' could not be found. Please check your Google Sheet.`);
-        }
-        const lastRow = sheet.getLastRow();
-        const data = (lastRow > 1) ? sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues() : [];
-        
-        return ContentService
-          .createTextOutput(JSON.stringify({ status: "success", data: data }))
-          .setMimeType(ContentService.MimeType.JSON)
-          .addHeader("Access-Control-Allow-Origin", "*");
-      } catch (error) {
-        return ContentService
-          .createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-
-    function doPost(e) {
-      try {
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-        if (!sheet) {
-          throw new Error(`Sheet named '${SHEET_NAME}' could not be found.`);
-        }
-        const data = JSON.parse(e.postData.contents);
-        sheet.appendRow([ new Date(), data.name, data.pin, data.amount, data.receiver ]);
-        
-        return ContentService
-          .createTextOutput(JSON.stringify({ status: "success", message: "Transaction logged." }))
-          .setMimeType(ContentService.MimeType.JSON)
-          .addHeader("Access-Control-Allow-Origin", "*");
-      } catch (error) {
-        return ContentService
-          .createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-    ```
-
-#### Step 2: The CRUCIAL Re-Deployment
-You **must** make a new deployment to apply the changes.
-1.  Save the script project.
-2.  At the top right, click **Deploy > New deployment**.
-3.  Click the gear icon next to "Select type" and choose **Web app**.
-4.  For "Who has access", select **Anyone**. This is required.
-5.  Click **Deploy**.
-6.  A popup will appear with the **Web app URL**. Click the **Copy** button. This is your new, correct URL.
-
-#### Step 3: The Final HTML Code
-Go back to your `household_app.html` file. Delete everything and replace it with the code below. Paste the **new URL** you just copied into the `WEB_APP_URL` variable.
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HARWELL PAY</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -244,23 +13,24 @@ Go back to your `household_app.html` file. Delete everything and replace it with
             --text-color: #e0e0e0; --text-secondary-color: #888888; --border-color: #444444;
             --font-main: 'Space Grotesk', sans-serif;
         }
+        * { box-sizing: border-box; }
         body {
             font-family: var(--font-main); background-color: var(--background-color); color: var(--text-color);
-            display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box;
+            display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem;
         }
         .app-container {
             width: 100%; max-width: 400px; background: var(--surface-color); border-radius: 16px;
             box-shadow: 0 8px 30px rgba(0,0,0,0.2); overflow: hidden; border: 1px solid var(--border-color);
         }
         .screen { padding: 2.5rem 2rem; }
-        h1, h2 { text-align: center; color: var(--primary-color); font-weight: 700; }
-        h1 { margin-top: 0; margin-bottom: 0.5rem; font-size: 2rem; }
-        h2 { margin-top: 0; margin-bottom: 2rem; font-size: 1.2rem; color: var(--text-secondary-color); font-weight: 400; }
+        h1, h2 { text-align: center; color: var(--primary-color); font-weight: 700; margin: 0; }
+        h1 { margin-bottom: 0.5rem; font-size: 2rem; }
+        h2 { margin-bottom: 2rem; font-size: 1.2rem; color: var(--text-secondary-color); font-weight: 400; }
         .form-group { margin-bottom: 1.5rem; }
         label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-secondary-color); font-size: 0.9rem; }
         input, select {
             width: 100%; padding: 0.9rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem;
-            background-color: var(--background-color); color: var(--text-color); font-family: var(--font-main); box-sizing: border-box;
+            background-color: var(--background-color); color: var(--text-color); font-family: var(--font-main);
         }
         select {
            -webkit-appearance: none; -moz-appearance: none; appearance: none;
@@ -276,7 +46,14 @@ Go back to your `household_app.html` file. Delete everything and replace it with
         #app-screen { display: none; }
         #balance-display { text-align: center; margin-bottom: 2.5rem; }
         #balance { font-size: 3.5rem; font-weight: 700; color: var(--primary-color); }
-        #status { text-align: center; margin-top: 1.5rem; font-weight: 500; min-height: 20px; }
+        .status { text-align: center; margin-top: 1.5rem; font-weight: 500; min-height: 20px; }
+        #logout-button {
+            background-color: transparent;
+            color: var(--text-secondary-color);
+            border: 1px solid var(--border-color);
+            margin-top: 1rem;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -316,23 +93,24 @@ Go back to your `household_app.html` file. Delete everything and replace it with
                 <button type="submit" id="send-button">Send</button>
                 <div id="payment-status" class="status"></div>
             </form>
+            <button type="button" id="logout-button">Log Out</button>
         </div>
     </div>
 
     <script>
-        // !!! PASTE YOUR *NEWEST* GOOGLE APPS SCRIPT WEB APP URL HERE !!!
-        const WEB_APP_URL = 'YOUR_NEW_WEB_APP_URL_HERE';
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzf6-kLkmzf57M1BJLasagt_ZDFK8KBNGQIseTrqiDwGXshMBfMrNccFxcCKl4xOgjDrQ/exec';
 
         // ===== MANAGE ACCOUNTS HERE =====
         const accounts = {
             'Taj': { pin: '1595' },
-            'Person B': { pin: '1234' },
-            'Person C': { pin: '5678' }
+            'Indi': { pin: '5421' },
+            'Carly': { pin: '5421' }
         };
 
         const loginScreen = document.getElementById('login-screen');
         const appScreen = document.getElementById('app-screen');
         const loginButton = document.getElementById('login-button');
+        const logoutButton = document.getElementById('logout-button');
         const paymentForm = document.getElementById('payment-form');
         const balanceDiv = document.getElementById('balance');
         const welcomeMessage = document.getElementById('welcome-message');
@@ -341,12 +119,12 @@ Go back to your `household_app.html` file. Delete everything and replace it with
         const sendButton = document.getElementById('send-button');
         const userSelect = document.getElementById('user-select');
         const receiverSelect = document.getElementById('receiver-select');
-
+        
         let currentUser = null;
         let userBalances = {};
 
         function populateLoginDropdown() {
-            userSelect.innerHTML = '';
+            userSelect.innerHTML = '<option value="" disabled selected>Select your name...</option>';
             for (const name in accounts) {
                 const option = document.createElement('option');
                 option.value = name;
@@ -388,9 +166,9 @@ Go back to your `household_app.html` file. Delete everything and replace it with
         }
 
         async function refreshDataAndUI(statusElement) {
-            statusElement.textContent = "Syncing with ledger...";
+            statusElement.textContent = "Processing...";
             const response = await fetch(WEB_APP_URL);
-            if (!response.ok) throw new Error(`Network Error (${response.statusText}). Check Apps Script deployment permissions.`);
+            if (!response.ok) throw new Error(`Network Error (${response.statusText}). Check Apps Script deployment.`);
             
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
@@ -401,38 +179,54 @@ Go back to your `household_app.html` file. Delete everything and replace it with
             balanceDiv.textContent = `&${currentUserBalance.toFixed(2)}`;
             statusElement.textContent = "";
         }
+        
+        async function showAppScreen(user) {
+            currentUser = user;
+            welcomeMessage.textContent = `Hello, ${currentUser}`;
+            populateReceiverDropdown(currentUser);
+            
+            loginScreen.style.display = 'none';
+            appScreen.style.display = 'block';
+
+            try {
+                await refreshDataAndUI(paymentStatus); // Use paymentStatus div in main app
+            } catch (error) {
+                paymentStatus.textContent = `Error: ${error.message}`;
+                paymentStatus.style.color = '#ff6b6b';
+            }
+        }
 
         loginButton.addEventListener('click', async () => {
             const selectedUser = userSelect.value;
             const enteredPin = document.getElementById('pin-input').value;
 
+            if (!selectedUser) {
+                loginStatus.textContent = "Please select your name.";
+                loginStatus.style.color = '#ff6b6b';
+                return;
+            }
             if (!accounts[selectedUser] || accounts[selectedUser].pin !== enteredPin) {
-                loginStatus.textContent = "Invalid Name or PIN.";
+                loginStatus.textContent = "Invalid PIN.";
                 loginStatus.style.color = '#ff6b6b';
                 return;
             }
 
             loginButton.disabled = true;
             loginStatus.style.color = 'var(--text-secondary-color)';
-            loginStatus.textContent = "Verifying & fetching data...";
-
-            try {
-                currentUser = selectedUser;
-                welcomeMessage.textContent = `Hello, ${currentUser}`;
-                populateReceiverDropdown(currentUser);
-                
-                await refreshDataAndUI(loginStatus);
-                
-                loginScreen.style.display = 'none';
-                appScreen.style.display = 'block';
-
-            } catch (error) {
-                loginStatus.textContent = `Login failed: ${error.message}`;
-                loginStatus.style.color = '#ff6b6b';
-                console.error("Login Error:", error);
-            } finally {
-                loginButton.disabled = false;
-            }
+            loginStatus.textContent = "Logging in...";
+            
+            localStorage.setItem('harwell_loggedInUser', selectedUser);
+            await showAppScreen(selectedUser);
+            loginButton.disabled = false;
+        });
+        
+        logoutButton.addEventListener('click', () => {
+            localStorage.removeItem('harwell_loggedInUser');
+            currentUser = null;
+            appScreen.style.display = 'none';
+            loginScreen.style.display = 'block';
+            document.getElementById('pin-input').value = '';
+            loginStatus.textContent = '';
         });
 
         paymentForm.addEventListener('submit', async (e) => {
@@ -481,8 +275,13 @@ Go back to your `household_app.html` file. Delete everything and replace it with
             }
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             populateLoginDropdown();
+            const savedUser = localStorage.getItem('harwell_loggedInUser');
+            if (savedUser && accounts[savedUser]) {
+                loginStatus.textContent = `Welcome back, ${savedUser}...`;
+                await showAppScreen(savedUser);
+            }
         });
     </script>
 </body>
