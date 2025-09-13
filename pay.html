@@ -46,14 +46,23 @@
         #app-screen { display: none; }
         #balance-display { text-align: center; margin-bottom: 2.5rem; }
         #balance { font-size: 3.5rem; font-weight: 700; color: var(--primary-color); }
-        .status { text-align: center; margin-top: 1.5rem; font-weight: 500; min-height: 20px; }
-        #logout-button {
-            background-color: transparent;
-            color: var(--text-secondary-color);
-            border: 1px solid var(--border-color);
-            margin-top: 1rem;
-            font-weight: 500;
+        .status { text-align: center; margin-top: 1rem; font-weight: 500; min-height: 20px; }
+        .text-button-group { margin-top: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; } /* ADJUSTED MARGIN AND GAP */
+        .text-button {
+            background: none; border: none; padding: 0; color: var(--text-secondary-color);
+            font-size: 0.9rem; font-weight: 500; cursor: pointer;
         }
+        .text-button:hover { text-decoration: underline; }
+
+        /* MODAL STYLES */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(5px); }
+        .modal-content { background-color: var(--surface-color); margin: 30% auto; padding: 2rem; border: 1px solid var(--border-color); border-radius: 12px; width: 90%; max-width: 400px; text-align: center; }
+        .modal-close { color: var(--text-secondary-color); float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 0.5; }
+        .modal-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 1rem; }
+        #transactions-list { list-style: none; padding: 0; text-align: left; max-height: 300px; overflow-y: auto; }
+        #transactions-list li { padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); }
+        #transactions-list li:last-child { border-bottom: none; }
+        #transactions-list small { color: var(--text-secondary-color); display: block; }
     </style>
 </head>
 <body>
@@ -93,131 +102,128 @@
                 <button type="submit" id="send-button">Send</button>
                 <div id="payment-status" class="status"></div>
             </form>
-            <button type="button" id="logout-button">Log Out</button>
+            <div class="text-button-group">
+                <button type="button" id="transactions-button" class="text-button">Transactions</button>
+                <button type="button" id="logout-button" class="text-button">Log Out</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MODALS -->
+    <div id="transactions-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" id="close-transactions-modal">&times;</span>
+            <div class="modal-title">Transaction History</div>
+            <ul id="transactions-list"></ul>
         </div>
     </div>
 
+
     <script>
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzf6-kLkmzf57M1BJLasagt_ZDFK8KBNGQIseTrqiDwGXshMBfMrNccFxcCKl4xOgjDrQ/exec';
+        const accounts = { 'Taj': { pin: '1595' }, 'Indi': { pin: '5421' }, 'Carly': { pin: '5421' }, 'Guahh': { pin: '1595' } };
 
-        // ===== MANAGE ACCOUNTS HERE =====
-        const accounts = {
-            'Taj': { pin: '1595' },
-            'Indi': { pin: '5421' },
-            'Carly': { pin: '5421' }
-        };
-
-        const loginScreen = document.getElementById('login-screen');
-        const appScreen = document.getElementById('app-screen');
-        const loginButton = document.getElementById('login-button');
-        const logoutButton = document.getElementById('logout-button');
-        const paymentForm = document.getElementById('payment-form');
-        const balanceDiv = document.getElementById('balance');
-        const welcomeMessage = document.getElementById('welcome-message');
-        const loginStatus = document.getElementById('login-status');
-        const paymentStatus = document.getElementById('payment-status');
-        const sendButton = document.getElementById('send-button');
-        const userSelect = document.getElementById('user-select');
-        const receiverSelect = document.getElementById('receiver-select');
+        const loginScreen = document.getElementById('login-screen'), appScreen = document.getElementById('app-screen');
+        const loginButton = document.getElementById('login-button'), logoutButton = document.getElementById('logout-button');
+        const transactionsButton = document.getElementById('transactions-button');
+        const paymentForm = document.getElementById('payment-form'), balanceDiv = document.getElementById('balance');
+        const welcomeMessage = document.getElementById('welcome-message'), loginStatus = document.getElementById('login-status');
+        const paymentStatus = document.getElementById('payment-status'), sendButton = document.getElementById('send-button');
+        const userSelect = document.getElementById('user-select'), receiverSelect = document.getElementById('receiver-select');
         
-        let currentUser = null;
-        let userBalances = {};
+        // Modal elements
+        const transactionsModal = document.getElementById('transactions-modal');
+        const closeModalButtons = document.querySelectorAll('.modal-close');
+
+        let currentUser = null, userBalances = {}, allTransactions = [];
 
         function populateLoginDropdown() {
             userSelect.innerHTML = '<option value="" disabled selected>Select your name...</option>';
-            for (const name in accounts) {
-                const option = document.createElement('option');
-                option.value = name;
-                option.textContent = name;
-                userSelect.appendChild(option);
-            }
+            for (const name in accounts) { userSelect.innerHTML += `<option value="${name}">${name}</option>`; }
         }
 
         function populateReceiverDropdown(loggedInUser) {
             receiverSelect.innerHTML = '<option value="">Select receiver...</option>';
-            for (const name in accounts) {
-                if (name !== loggedInUser) {
-                    const option = document.createElement('option');
-                    option.value = name;
-                    option.textContent = name;
-                    receiverSelect.appendChild(option);
-                }
-            }
+            for (const name in accounts) { if (name !== loggedInUser) receiverSelect.innerHTML += `<option value="${name}">${name}</option>`; }
         }
 
         function calculateBalances(transactions) {
             const balances = {};
             Object.keys(accounts).forEach(user => balances[user] = 0);
-            
-            for (const transaction of transactions) {
-                const [timestamp, sender, pin, amount, receiver] = transaction;
-                const numericAmount = parseFloat(amount);
-
-                if (!isNaN(numericAmount)) {
-                    if (receiver && balances.hasOwnProperty(receiver)) {
-                        balances[receiver] += numericAmount;
-                    }
-                    if (sender && sender !== 'SYSTEM' && balances.hasOwnProperty(sender)) {
-                        balances[sender] -= numericAmount;
-                    }
+            for (const tx of transactions) {
+                const [ts, sender, pin, amount, receiver] = tx;
+                const numAmount = parseFloat(amount);
+                if (!isNaN(numAmount)) {
+                    if (receiver && balances.hasOwnProperty(receiver)) balances[receiver] += numAmount;
+                    if (sender && sender !== 'SYSTEM' && balances.hasOwnProperty(sender)) balances[sender] -= numAmount;
                 }
             }
             return balances;
         }
 
-        async function refreshDataAndUI(statusElement) {
-            statusElement.textContent = "Processing...";
+        async function refreshDataAndUI(statusElement, message) {
+            statusElement.textContent = message;
             const response = await fetch(WEB_APP_URL);
-            if (!response.ok) throw new Error(`Network Error (${response.statusText}). Check Apps Script deployment.`);
-            
+            if (!response.ok) throw new Error(`Network Error (${response.statusText}).`);
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
-
-            userBalances = calculateBalances(result.data);
-
-            const currentUserBalance = userBalances[currentUser] || 0;
-            balanceDiv.textContent = `&${currentUserBalance.toFixed(2)}`;
+            
+            allTransactions = result.data; // Store for history
+            userBalances = calculateBalances(allTransactions);
+            balanceDiv.textContent = `&${(userBalances[currentUser] || 0).toFixed(2)}`;
             statusElement.textContent = "";
         }
         
-        async function showAppScreen(user) {
+        async function performLogin(user) {
             currentUser = user;
+            await refreshDataAndUI(loginStatus, "Logging In...");
             welcomeMessage.textContent = `Hello, ${currentUser}`;
             populateReceiverDropdown(currentUser);
-            
+            localStorage.setItem('harwell_loggedInUser', user);
             loginScreen.style.display = 'none';
             appScreen.style.display = 'block';
+        }
+        
+        function showTransactions() {
+            const list = document.getElementById('transactions-list');
+            list.innerHTML = ''; // Clear old list
+            
+            const userTransactions = allTransactions
+                .filter(tx => tx[1] === currentUser || tx[4] === currentUser)
+                .sort((a, b) => new Date(b[0]) - new Date(a[0])); // Sort descending
 
-            try {
-                await refreshDataAndUI(paymentStatus); // Use paymentStatus div in main app
-            } catch (error) {
-                paymentStatus.textContent = `Error: ${error.message}`;
-                paymentStatus.style.color = '#ff6b6b';
+            if (userTransactions.length === 0) {
+                list.innerHTML = '<li>No transactions found.</li>';
+            } else {
+                userTransactions.forEach(tx => {
+                    const [ts, sender, pin, amount, receiver] = tx;
+                    const date = new Date(ts).toLocaleString();
+                    let description = '';
+                    if (sender === currentUser) {
+                        description = `You sent &${parseFloat(amount).toFixed(2)} to ${receiver}`;
+                    } else if (receiver === currentUser) {
+                        description = `${sender} sent you &${parseFloat(amount).toFixed(2)}`;
+                    }
+                    if (description) {
+                        const li = document.createElement('li');
+                        li.innerHTML = `${description}<small>${date}</small>`;
+                        list.appendChild(li);
+                    }
+                });
             }
+            transactionsModal.style.display = 'block';
         }
 
+        // Event Listeners
         loginButton.addEventListener('click', async () => {
-            const selectedUser = userSelect.value;
-            const enteredPin = document.getElementById('pin-input').value;
-
-            if (!selectedUser) {
-                loginStatus.textContent = "Please select your name.";
-                loginStatus.style.color = '#ff6b6b';
-                return;
-            }
-            if (!accounts[selectedUser] || accounts[selectedUser].pin !== enteredPin) {
-                loginStatus.textContent = "Invalid PIN.";
-                loginStatus.style.color = '#ff6b6b';
-                return;
-            }
-
+            const selectedUser = userSelect.value, enteredPin = document.getElementById('pin-input').value;
+            if (!selectedUser) { loginStatus.textContent = "Please select your name."; loginStatus.style.color = '#ff6b6b'; return; }
+            if (!accounts[selectedUser] || accounts[selectedUser].pin !== enteredPin) { loginStatus.textContent = "Invalid PIN."; loginStatus.style.color = '#ff6b6b'; return; }
             loginButton.disabled = true;
             loginStatus.style.color = 'var(--text-secondary-color)';
-            loginStatus.textContent = "Logging in...";
-            
-            localStorage.setItem('harwell_loggedInUser', selectedUser);
-            await showAppScreen(selectedUser);
-            loginButton.disabled = false;
+            try { await performLogin(selectedUser); } 
+            catch (error) { loginStatus.textContent = `Login failed: ${error.message}`; loginStatus.style.color = '#ff6b6b'; } 
+            finally { loginButton.disabled = false; }
         });
         
         logoutButton.addEventListener('click', () => {
@@ -226,61 +232,46 @@
             appScreen.style.display = 'none';
             loginScreen.style.display = 'block';
             document.getElementById('pin-input').value = '';
+            userSelect.value = '';
             loginStatus.textContent = '';
         });
 
+        transactionsButton.addEventListener('click', showTransactions);
+
         paymentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const receiver = receiverSelect.value;
-            const amount = parseFloat(document.getElementById('amount-input').value);
+            const receiver = receiverSelect.value, amount = parseFloat(document.getElementById('amount-input').value);
             const currentUserBalance = userBalances[currentUser] || 0;
-
             paymentStatus.style.color = '#ff6b6b';
             if (!receiver) { paymentStatus.textContent = "Please select a receiver."; return; }
             if (isNaN(amount) || amount <= 0) { paymentStatus.textContent = "Please enter a valid amount."; return; }
             if (amount > currentUserBalance) { paymentStatus.textContent = "Insufficient funds!"; return; }
-
             sendButton.disabled = true;
-            paymentStatus.textContent = "Sending...";
             paymentStatus.style.color = 'var(--text-secondary-color)';
-            
-            const transactionData = {
-                name: currentUser,
-                pin: accounts[currentUser].pin,
-                amount: amount,
-                receiver: receiver
-            };
-
+            const transactionData = { name: currentUser, pin: accounts[currentUser].pin, amount: amount, receiver: receiver };
             try {
-                const response = await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'cors',
-                    cache: 'no-cache',
-                    body: JSON.stringify(transactionData)
-                });
+                const response = await fetch(WEB_APP_URL, { method: 'POST', mode: 'cors', cache: 'no-cache', body: JSON.stringify(transactionData) });
                 const result = await response.json();
-
                 if (result.status !== 'success') throw new Error(result.message);
-
                 paymentStatus.textContent = "Success!";
-                paymentStatus.style.color = '#45d996';
+                paymentStatus.style.color = '#45d966'; // Success Green
                 paymentForm.reset();
-                await refreshDataAndUI(paymentStatus);
-
-            } catch (error) {
-                paymentStatus.textContent = `Error: ${error.message}`;
-                paymentStatus.style.color = '#ff6b6b';
-            } finally {
-                sendButton.disabled = false;
-            }
+                await refreshDataAndUI(paymentStatus, "Processing...");
+            } catch (error) { paymentStatus.textContent = `Error: ${error.message}`; paymentStatus.style.color = '#ff6b6b'; } 
+            finally { sendButton.disabled = false; }
         });
+
+        closeModalButtons.forEach(btn => btn.onclick = () => { transactionsModal.style.display = 'none'; });
+        window.onclick = (event) => { if (event.target == transactionsModal) { event.target.style.display = 'none'; } };
 
         document.addEventListener('DOMContentLoaded', async () => {
             populateLoginDropdown();
             const savedUser = localStorage.getItem('harwell_loggedInUser');
             if (savedUser && accounts[savedUser]) {
-                loginStatus.textContent = `Welcome back, ${savedUser}...`;
-                await showAppScreen(savedUser);
+                loginButton.disabled = true; userSelect.value = savedUser; loginStatus.textContent = `Welcome back, ${savedUser}...`;
+                try { await performLogin(savedUser); } 
+                catch(error) { loginStatus.textContent = `Auto-login failed. Please log in manually.`; loginStatus.style.color = '#ff6b6b'; localStorage.removeItem('harwell_loggedInUser'); } 
+                finally { loginButton.disabled = false; }
             }
         });
     </script>
