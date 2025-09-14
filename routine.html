@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Wellness Hub</title>
+    <style>
+        :root {
+            --background: #000000;
+            --surface: #1C1C1E;
+            --surface-light: #2C2C2E;
+            --primary: #0A84FF;
+            --text-primary: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --divider: #38383A;
+            --green: #30D158;
+            --safe-area-inset-top: env(safe-area-inset-top, 20px);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        html, body {
+            overscroll-behavior: none;
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .app-header {
+            padding: 15px;
+            padding-top: var(--safe-area-inset-top);
+            background: rgba(28, 28, 30, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .segmented-control {
+            display: flex;
+            width: 100%;
+            background-color: var(--surface-light);
+            border-radius: 10px;
+            padding: 3px;
+            box-sizing: border-box;
+        }
+
+        .nav-item {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.3s, color 0.3s;
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: var(--surface);
+            color: var(--primary);
+        }
+        
+        .nav-item span {
+            vertical-align: middle;
+            margin-left: 8px;
+        }
+
+        main {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        .page {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+        }
+
+        .page.active {
+            display: flex;
+        }
+        
+        .content-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 0 20px;
+        }
+
+        /* Routine Page Specific */
+        .routine-header {
+            padding: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 { font-size: 34px; font-weight: 700; margin: 0; }
+        #quote-header { font-size: 15px; color: var(--text-secondary); margin-top: 5px; font-weight: 500; }
+        .progress-container { position: relative; width: 60px; height: 60px; }
+        .progress-circle { transform: rotate(-90deg); }
+        .progress-circle-bg { fill: none; stroke: var(--surface); stroke-width: 5; }
+        .progress-circle-bar { fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+        .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+
+        #routine-list { list-style: none; padding: 0; margin: 0; }
+        .routine-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--divider); cursor: pointer; transition: opacity 0.3s, transform 0.3s; }
+        .routine-item.exiting { opacity: 0; transform: translateX(-100%); }
+        .routine-item:last-child { border-bottom: none; }
+        .checkbox-emoji { font-size: 24px; margin-right: 16px; transition: transform 0.2s; }
+        .routine-item.completed .checkbox-emoji { transform: scale(1.2); }
+        .routine-text { flex-grow: 1; font-size: 17px; transition: color 0.2s; }
+        .routine-item.completed .routine-text { text-decoration: line-through; color: var(--text-secondary); }
+        
+        .delete-btn {
+            background: none; border: none; color: var(--text-secondary); font-size: 28px;
+            font-weight: 300; cursor: pointer; opacity: 0.5; transition: opacity 0.2s, color 0.2s;
+            padding: 0 5px; line-height: 1;
+        }
+        .routine-item:hover .delete-btn { opacity: 1; color: var(--text-primary); }
+
+        .add-routine-footer { padding: 10px 20px; margin-top: auto; padding-bottom: calc(var(--safe-area-inset-bottom) + 10px); display: flex; align-items: center; gap: 10px; background-color: var(--background); border-top: 1px solid var(--divider); }
+        #routine-input { flex-grow: 1; padding: 14px; border: none; border-radius: 10px; background-color: var(--surface); color: var(--text-primary); font-size: 17px; }
+        #add-routine-btn { background-color: var(--primary); border: none; border-radius: 10px; color: white; font-size: 28px; font-weight: 300; cursor: pointer; width: 50px; height: 50px; flex-shrink: 0; }
+
+        /* Quotes Page Specific */
+        #quotes-list {
+            list-style: none;
+            padding: 15px 0;
+            margin: 0;
+        }
+        .quote-card {
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .quote-text {
+            font-size: 20px;
+            font-weight: 500;
+            font-style: italic;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .quote-author {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            text-align: right;
+            font-style: normal;
+        }
+
+        /* Gradient Backgrounds */
+        .gradient-1 { background-image: linear-gradient(to top right, #3a1c71, #d76d77, #ffaf7b); }
+        .gradient-2 { background-image: linear-gradient(to top right, #005c97, #363795); }
+        .gradient-3 { background-image: linear-gradient(to top right, #1d4350, #a43931); }
+        .gradient-4 { background-image: linear-gradient(to top right, #614385, #516395); }
+        .gradient-5 { background-image: linear-gradient(to top right, #0f2027, #203a43, #2c5364); }
+        .gradient-6 { background-image: linear-gradient(to top right, #cb2d3e, #ef473a); }
+        .gradient-7 { background-image: linear-gradient(to top right, #134e5e, #71b280); }
+        .gradient-8 { background-image: linear-gradient(to top right, #42275a, #734b6d); }
+
+    </style>
+</head>
+<body>
+
+    <header class="app-header">
+        <nav class="segmented-control">
+            <div class="nav-item active" data-page="page-routine">📝<span>Routine</span></div>
+            <div class="nav-item" data-page="page-quotes">💡<span>Quotes</span></div>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Routine Page -->
+        <div id="page-routine" class="page active">
+            <div class="content-area">
+                <div class="routine-header">
+                    <div class="header-content">
+                        <h1>My Day</h1>
+                        <p id="quote-header"></p>
+                    </div>
+                    <div class="progress-container">
+                        <svg class="progress-circle" width="60" height="60" viewBox="0 0 60 60">
+                            <circle class="progress-circle-bg" cx="30" cy="30" r="27.5"></circle>
+                            <circle id="progress-bar" class="progress-circle-bar" cx="30" cy="30" r="27.5"></circle>
+                        </svg>
+                        <div id="progress-text" class="progress-text">0%</div>
+                    </div>
+                </div>
+                <ul id="routine-list"></ul>
+            </div>
+            <div class="add-routine-footer">
+                <input type="text" id="routine-input" placeholder="Add new routine...">
+                <button id="add-routine-btn">+</button>
+            </div>
+        </div>
+
+        <!-- Quotes Page -->
+        <div id="page-quotes" class="page">
+            <div class="content-area">
+                 <h1 style="padding: 20px 0 5px 0;">Inspiration</h1>
+                 <ul id="quotes-list"></ul>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- EMBEDDED QUOTE DATA ---
+            const quotesData = [
+                { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+                { text: "Well done is better than well said.", author: "Benjamin Franklin" },
+                { text: "A little progress each day adds up to big results.", author: "Satya Nani" },
+                { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+                { text: "Success is the sum of small efforts, repeated day in and day out.", author: "Robert Collier" },
+                { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+                { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+                { text: "The future depends on what you do today.", author: "Mahatma Gandhi" },
+                { text: "Discipline is the bridge between goals and accomplishment.", author: "Jim Rohn" },
+                { text: "The body achieves what the mind believes.", author: "Napoleon Hill" },
+                { text: "Don’t watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+                { text: "Act as if what you do makes a difference. It does.", author: "William James" },
+                { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+                { text: "You are never too old to set another goal or to dream a new dream.", author: "C.S. Lewis" },
+                { text: "Our greatest glory is not in never falling, but in rising every time we fall.", author: "Confucius" },
+                { text: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar" },
+                { text: "Strive for progress, not perfection.", author: "Unknown" },
+                { text: "The journey of a thousand miles begins with a single step.", author: "Lao Tzu" },
+                { text: "Either you run the day, or the day runs you.", author: "Jim Rohn" },
+                { text: "Your limitation—it's only your imagination.", author: "Unknown" },
+                { text: "Push yourself, because no one else is going to do it for you.", author: "Unknown" },
+                { text: "Great things never come from comfort zones.", author: "Unknown" },
+                { text: "Dream it. Wish it. Do it.", author: "Unknown" },
+                { text: "Success doesn’t just find you. You have to go out and get it.", author: "Unknown" },
+                { text: "The harder you work for something, the greater you’ll feel when you achieve it.", author: "Unknown" },
+                { text: "Dream bigger. Do bigger.", author: "Unknown" },
+                { text: "Don’t stop when you’re tired. Stop when you’re done.", author: "Unknown" },
+                { text: "Wake up with determination. Go to bed with satisfaction.", author: "Unknown" },
+                { text: "Do something today that your future self will thank you for.", author: "Sean Patrick Flanery" },
+                { text: "Little things make big days.", author: "Unknown" },
+                { text: "It’s going to be hard, but hard does not mean impossible.", author: "Unknown" },
+                { text: "The key to success is to focus on goals, not obstacles.", author: "Unknown" }
+            ];
+
+            // --- APP LOGIC ---
+            const pages = document.querySelectorAll('.page');
+            const navItems = document.querySelectorAll('.nav-item');
+            
+            const routineInput = document.getElementById('routine-input');
+            const addRoutineBtn = document.getElementById('add-routine-btn');
+            const routineList = document.getElementById('routine-list');
+            const quoteHeaderEl = document.getElementById('quote-header');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const radius = progressBar.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            progressBar.style.strokeDasharray = `${circumference} ${circumference}`;
+
+            const quotesList = document.getElementById('quotes-list');
+
+            let routines = JSON.parse(localStorage.getItem('routines')) || [];
+            let lastVisitDate = localStorage.getItem('lastVisitDateAEST');
+
+            function getAESTDateString() {
+                const now = new Date();
+                return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+            }
+
+            function checkAndResetForNewDay() {
+                const todayAEST = getAESTDateString();
+                if (lastVisitDate !== todayAEST) {
+                    routines.forEach(r => r.completed = false);
+                    saveRoutines();
+                    localStorage.setItem('lastVisitDateAEST', todayAEST);
+                }
+            }
+            
+            function switchPage(pageId) {
+                pages.forEach(page => page.classList.remove('active'));
+                document.getElementById(pageId).classList.add('active');
+                navItems.forEach(nav => nav.classList.toggle('active', nav.dataset.page === pageId));
+            }
+
+            navItems.forEach(nav => nav.addEventListener('click', () => switchPage(nav.dataset.page)));
+
+            const saveRoutines = () => localStorage.setItem('routines', JSON.stringify(routines));
+
+            const updateProgress = () => {
+                const completedCount = routines.filter(r => r.completed).length;
+                const totalCount = routines.length;
+                const percentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+                const offset = circumference - (percentage / 100) * circumference;
+                progressBar.style.strokeDashoffset = offset;
+                progressText.textContent = `${Math.round(percentage)}%`;
+            };
+
+            const renderRoutines = () => {
+                routineList.innerHTML = '';
+                if (routines.length === 0) {
+                    routineList.innerHTML = `<li style="color: var(--text-secondary); text-align: center; padding: 40px 0;">Add a routine to get started.</li>`;
+                } else {
+                    routines.forEach((routine, index) => {
+                        const li = document.createElement('li');
+                        li.className = `routine-item ${routine.completed ? 'completed' : ''}`;
+                        li.innerHTML = `<span class="checkbox-emoji">${routine.completed ? '✅' : '⚪️'}</span><span class="routine-text">${routine.text}</span>`;
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'delete-btn';
+                        deleteBtn.innerHTML = '&times;';
+                        deleteBtn.addEventListener('click', e => { e.stopPropagation(); deleteRoutine(index, li); });
+                        li.appendChild(deleteBtn);
+                        li.addEventListener('click', () => toggleComplete(index));
+                        routineList.appendChild(li);
+                    });
+                }
+                updateProgress();
+            };
+
+            const toggleComplete = (index) => {
+                routines[index].completed = !routines[index].completed;
+                if (navigator.vibrate) navigator.vibrate(50);
+                saveRoutines();
+                renderRoutines();
+            };
+            
+            const addRoutine = () => {
+                const text = routineInput.value.trim();
+                if (text) {
+                    routines.unshift({ text, completed: false });
+                    routineInput.value = '';
+                    saveRoutines();
+                    renderRoutines();
+                }
+            };
+
+            const deleteRoutine = (index, element) => {
+                element.classList.add('exiting');
+                setTimeout(() => {
+                    routines.splice(index, 1);
+                    saveRoutines();
+                    renderRoutines();
+                }, 300);
+            };
+
+            function showHeaderQuote() {
+                const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+                quoteHeaderEl.textContent = quotesData[dayOfYear % quotesData.length].text;
+            }
+            
+            function renderQuotes() {
+                quotesList.innerHTML = '';
+                const gradientClasses = ['gradient-1', 'gradient-2', 'gradient-3', 'gradient-4', 'gradient-5', 'gradient-6', 'gradient-7', 'gradient-8'];
+
+                quotesData.forEach((quote, index) => {
+                    const li = document.createElement('li');
+                    const gradientClass = gradientClasses[index % gradientClasses.length]; // Cycle through gradients
+                    li.classList.add('quote-card', gradientClass);
+                    li.innerHTML = `
+                        <p class="quote-text">“${quote.text}”</p>
+                        <p class="quote-author">— ${quote.author}</p>
+                    `;
+                    quotesList.appendChild(li);
+                });
+            }
+
+            function init() {
+                checkAndResetForNewDay();
+                addRoutineBtn.addEventListener('click', addRoutine);
+                routineInput.addEventListener('keypress', e => e.key === 'Enter' && addRoutine());
+                showHeaderQuote();
+                renderRoutines();
+                renderQuotes();
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
