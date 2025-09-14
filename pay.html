@@ -95,7 +95,7 @@
         <div id="app-screen" class="screen">
             <h2 id="welcome-message">Welcome!</h2>
             <div id="balance-display">
-                <label>Your Current Balance</label>
+                <label>Balance</label>
                 <div id="balance">&0.00</div>
             </div>
             <form id="payment-form">
@@ -105,7 +105,7 @@
                 </div>
                 <div class="form-group">
                     <label for="amount-input">Amount (&)</label>
-                    <input type="number" id="amount-input" step="0.01" min="0.01" placeholder="0.00" required>
+                    <input type="number" id="amount-input" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
                 </div>
                 <button type="submit" id="send-button">Send</button>
                 <div id="payment-status" class="status"></div>
