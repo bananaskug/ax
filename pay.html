@@ -48,7 +48,7 @@
         #balance-display { text-align: center; margin-bottom: 2.5rem; }
         #balance { font-size: 3.5rem; font-weight: 700; color: var(--primary-color); }
         .status { text-align: center; margin-top: 1rem; font-weight: 500; min-height: 20px; }
-        .text-button-group { margin-top: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; } /* ADJUSTED MARGIN AND GAP */
+        .text-button-group { margin-top: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
         .text-button {
             background: none; border: none; padding: 0; color: var(--text-secondary-color);
             font-size: 0.9rem; font-weight: 500; cursor: pointer;
@@ -71,6 +71,27 @@
         .confirmation-buttons button { width: 45%; }
         #confirm-send-button { background-color: var(--success-color); }
         #cancel-send-button { background-color: var(--error-color); color: var(--primary-color); }
+        
+        /* --- NEW: LOADER AND SUCCESS TICK STYLES --- */
+        .loader {
+            border: 5px solid #444;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 2.5rem auto;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .success-indicator { display: none; margin: 1.5rem auto; width: 80px; height: 80px; }
+        .checkmark { width: 80px; height: 80px; border-radius: 50%; display: block; stroke-width: 3; stroke: #fff; stroke-miterlimit: 10; box-shadow: inset 0px 0px 0px var(--success-color); animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both; }
+        .checkmark-circle { stroke-dasharray: 166; stroke-dashoffset: 166; stroke-width: 3; stroke-miterlimit: 10; stroke: var(--success-color); fill: none; animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards; }
+        .checkmark-check { transform-origin: 50% 50%; stroke-dasharray: 48; stroke-dashoffset: 48; animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards; }
+        @keyframes stroke { 100% { stroke-dashoffset: 0; } }
+        @keyframes scale { 0%, 100% { transform: none; } 50% { transform: scale3d(1.1, 1.1, 1); } }
+        @keyframes fill { 100% { box-shadow: inset 0px 0px 0px 40px var(--success-color); } }
     </style>
 </head>
 <body>
@@ -126,15 +147,27 @@
         </div>
     </div>
 
-    <!-- ===== NEW: CONFIRMATION MODAL ===== -->
     <div id="confirmation-modal" class="modal">
         <div class="modal-content">
             <span class="modal-close" id="close-confirmation-modal">&times;</span>
             <div class="modal-title">Confirm Transaction</div>
-            <div id="confirmation-details"></div>
-            <div class="confirmation-buttons">
-                <button type="button" id="cancel-send-button">No, Cancel</button>
-                <button type="button" id="confirm-send-button">Yes, Send</button>
+            
+            <!-- NEW: Wrapper for confirmation content -->
+            <div id="confirmation-content">
+                <div id="confirmation-details"></div>
+                <div class="confirmation-buttons">
+                    <button type="button" id="cancel-send-button">No, Cancel</button>
+                    <button type="button" id="confirm-send-button">Yes, Send</button>
+                </div>
+            </div>
+
+            <!-- NEW: Loader and Success Indicator -->
+            <div id="loader" class="loader"></div>
+            <div id="success-indicator" class="success-indicator">
+              <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+                <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+              </svg>
             </div>
         </div>
     </div>
@@ -152,17 +185,19 @@
         const paymentStatus = document.getElementById('payment-status'), sendButton = document.getElementById('send-button');
         const userSelect = document.getElementById('user-select'), receiverSelect = document.getElementById('receiver-select');
         
-        // Modal elements
         const transactionsModal = document.getElementById('transactions-modal');
         const closeModalButtons = document.querySelectorAll('.modal-close');
 
-        // NEW: Confirmation Modal Elements
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmationDetails = document.getElementById('confirmation-details');
         const confirmSendButton = document.getElementById('confirm-send-button');
         const cancelSendButton = document.getElementById('cancel-send-button');
         const closeConfirmationModal = document.getElementById('close-confirmation-modal');
 
+        // NEW: Elements for loader and success tick
+        const confirmationContent = document.getElementById('confirmation-content');
+        const loader = document.getElementById('loader');
+        const successIndicator = document.getElementById('success-indicator');
 
         let currentUser = null, userBalances = {}, allTransactions = [];
 
@@ -197,7 +232,7 @@
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message);
             
-            allTransactions = result.data; // Store for history
+            allTransactions = result.data;
             userBalances = calculateBalances(allTransactions);
             balanceDiv.textContent = `&${(userBalances[currentUser] || 0).toFixed(2)}`;
             statusElement.textContent = "";
@@ -215,11 +250,11 @@
         
         function showTransactions() {
             const list = document.getElementById('transactions-list');
-            list.innerHTML = ''; // Clear old list
+            list.innerHTML = '';
             
             const userTransactions = allTransactions
                 .filter(tx => tx[1] === currentUser || tx[4] === currentUser)
-                .sort((a, b) => new Date(b[0]) - new Date(a[0])); // Sort descending
+                .sort((a, b) => new Date(b[0]) - new Date(a[0]));
 
             if (userTransactions.length === 0) {
                 list.innerHTML = '<li>No transactions found.</li>';
@@ -242,13 +277,17 @@
             }
             transactionsModal.style.display = 'block';
         }
-
+        
+        // --- MODIFIED: executePayment function with loading and success states ---
         async function executePayment() {
             sendButton.disabled = true;
             confirmSendButton.disabled = true;
             paymentStatus.style.color = 'var(--text-secondary-color)';
             
-            // Retrieve details from form again
+            // Show loader
+            confirmationContent.style.display = 'none';
+            loader.style.display = 'block';
+
             const receiver = receiverSelect.value;
             const amount = parseFloat(document.getElementById('amount-input').value);
             const transactionData = { name: currentUser, pin: accounts[currentUser].pin, amount: amount, receiver: receiver };
@@ -258,18 +297,33 @@
                 const result = await response.json();
                 if (result.status !== 'success') throw new Error(result.message);
                 
-                paymentStatus.textContent = "Success!";
-                paymentStatus.style.color = 'var(--success-color)';
-                paymentForm.reset();
-                await refreshDataAndUI(paymentStatus, "Processing...");
+                // On success, show tick
+                loader.style.display = 'none';
+                successIndicator.style.display = 'block';
+
+                // Wait for animation, then close modal and refresh UI
+                setTimeout(async () => {
+                    confirmationModal.style.display = 'none';
+                    successIndicator.style.display = 'none'; // Reset for next time
+                    confirmationContent.style.display = 'block'; // Reset for next time
+                    
+                    paymentStatus.textContent = "Success!";
+                    paymentStatus.style.color = 'var(--success-color)';
+                    paymentForm.reset();
+                    await refreshDataAndUI(paymentStatus, "Processing...");
+                }, 2000); // 2-second delay
 
             } catch (error) {
+                // On error, hide loader and modal, then show error message
+                loader.style.display = 'none';
+                confirmationModal.style.display = 'none';
+                confirmationContent.style.display = 'block'; // Reset for next time
                 paymentStatus.textContent = `Error: ${error.message}`;
                 paymentStatus.style.color = 'var(--error-color)';
             } finally {
+                // Re-enable buttons after everything is done
                 sendButton.disabled = false;
                 confirmSendButton.disabled = false;
-                confirmationModal.style.display = 'none'; // Hide modal on completion
             }
         }
 
@@ -298,7 +352,7 @@
         transactionsButton.addEventListener('click', showTransactions);
 
         paymentForm.addEventListener('submit', (e) => {
-            e.preventDefault(); // Prevent form from submitting the traditional way
+            e.preventDefault();
             const receiver = receiverSelect.value;
             const amount = parseFloat(document.getElementById('amount-input').value);
             const currentUserBalance = userBalances[currentUser] || 0;
@@ -308,22 +362,19 @@
             if (isNaN(amount) || amount <= 0) { paymentStatus.textContent = "Please enter a valid amount."; return; }
             if (amount > currentUserBalance) { paymentStatus.textContent = "Insufficient funds!"; return; }
             
-            // If validation passes, show confirmation modal instead of sending immediately
             confirmationDetails.innerHTML = `Are you sure you want to send <strong>&${amount.toFixed(2)}</strong> to <strong>${receiver}</strong>?`;
             confirmationModal.style.display = 'block';
-            paymentStatus.textContent = ''; // Clear previous status messages
+            paymentStatus.textContent = '';
         });
 
-        // NEW: Event listener for the actual send button inside the modal
         confirmSendButton.addEventListener('click', executePayment);
 
         closeModalButtons.forEach(btn => btn.onclick = () => { transactionsModal.style.display = 'none'; });
         window.onclick = (event) => { 
             if (event.target == transactionsModal) { transactionsModal.style.display = 'none'; }
-            if (event.target == confirmationModal) { confirmationModal.style.display = 'none'; } // NEW
+            if (event.target == confirmationModal) { confirmationModal.style.display = 'none'; }
         };
 
-        // NEW: Event listeners to close the confirmation modal
         cancelSendButton.onclick = () => { confirmationModal.style.display = 'none'; };
         closeConfirmationModal.onclick = () => { confirmationModal.style.display = 'none'; };
 
